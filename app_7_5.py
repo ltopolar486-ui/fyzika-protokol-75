@@ -7,7 +7,44 @@ import io              # NOVÉ: Pro práci s daty v paměti
 from datetime import datetime  # NOVÉ: Pro získání aktuálního data a času
 
 # 1. Nastavení vzhledu aplikace
-st.set_page_config(page_title="Modul pružnosti - Protokol", layout="centered")
+st.set_page_config(page_title="7.5 Modul pružnosti v tahu přímou metodou", layout="centered")
+
+# ==========================================
+# VLASTNÍ CSS PRO ZMENŠENÍ PÍSMA A POLÍ
+# ==========================================
+st.markdown("""
+    <style>
+        /* Zmenšení běžného textu a odstavců */
+        html, body, p, div, span {
+            font-size: 16px !important;
+        }
+        
+        /* Zmenšení textu u popisků vstupních polí (např. Jméno, Tlak...) */
+        .stTextInput label, .stNumberInput label {
+            font-size: 16px !important;
+        }
+        
+        /* Zmenšení textu uvnitř samotných políček a zmenšení jejich "nafouknutí" */
+        input {
+            font-size: 16px !important;
+            padding: 8px 10px !important;
+            text-align: center !important;
+        }
+        
+        /* Úprava velikosti nadpisů, aby nezabíraly půl obrazovky */
+        h1 {
+            font-size: 24px !important;
+            padding-bottom: 10px !important;
+        }
+        h2 {
+            font-size: 18px !important;
+            padding-bottom: 8px !important;
+        }
+        h3 {
+            font-size: 16px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # INICIALIZACE PAMĚTI (State management)
@@ -32,7 +69,7 @@ if 'vlhkost' not in st.session_state:
 # --- Paměť pro Krok 2 ---
 for i in range(1, 6):
     if f'd{i}' not in st.session_state:
-        st.session_state[f'd{i}'] = "0.650"
+        st.session_state[f'd{i}'] = ""
 if 'student_prumer' not in st.session_state:
     st.session_state.student_prumer = ""
 if 'skutecny_prumer' not in st.session_state:
@@ -40,15 +77,15 @@ if 'skutecny_prumer' not in st.session_state:
 
 # --- Paměť pro Krok 3 ---
 if 'l0' not in st.session_state:
-    st.session_state.l0 = "2.500"
+    st.session_state.l0 = ""
 if 'err_l0' not in st.session_state:
-    st.session_state.err_l0 = "1.0" # Chyba délky l0 v milimetrech
+    st.session_state.err_l0 = "" # Chyba délky l0 v milimetrech
     
-hmotnosti = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
+hmotnosti = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
 for h in hmotnosti:
     key = str(h).replace('.', '_')
     if f'zatez_{key}' not in st.session_state:
-        st.session_state[f'zatez_{key}'] = "0.000" if h == 0.0 else ""
+        st.session_state[f'zatez_{key}'] = "" 
     if f'odleh_{key}' not in st.session_state:
         st.session_state[f'odleh_{key}'] = ""
 
@@ -71,7 +108,7 @@ if 'zaver' not in st.session_state:
     st.session_state.zaver = ""
 
 # Hlavní nadpis
-st.title("Úloha 7.5: Stanovení modulu pružnosti")
+st.title("Úloha 7.5: Stanovení modulu pružnosti v tahu přímou metodou")
 st.markdown("---")
 
 # ==========================================
@@ -139,7 +176,7 @@ if st.session_state.krok == 0:
                     skore += 1
                     
             if skore >= 6:
-                st.success(f"🎉 Výborně! Máte {skore} ze 7 správně. Vaše teoretická příprava je dostatečná.")
+                st.success(f"Výborně! Máte {skore} ze 7 správně. Vaše teoretická příprava je dostatečná.")
                 st.session_state.krok = 1
                 st.rerun()
             else:
@@ -157,11 +194,11 @@ if st.session_state.krok == 1:
     st.header("Laboratorní podmínky")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.session_state.tlak = st.text_input("Tlak [hPa]", value=st.session_state.tlak)
+        st.session_state.tlak = st.text_input("Tlak (hPa)", value=st.session_state.tlak)
     with col2:
-        st.session_state.teplota = st.text_input("Teplota [°C]", value=st.session_state.teplota)
+        st.session_state.teplota = st.text_input("Teplota (°C)", value=st.session_state.teplota)
     with col3:
-        st.session_state.vlhkost = st.text_input("Vlhkost [%]", value=st.session_state.vlhkost)
+        st.session_state.vlhkost = st.text_input("Vlhkost (%)", value=st.session_state.vlhkost)
         
     st.markdown("---")
     if st.button("Uložit a pokračovat k měření průměru"):
@@ -262,132 +299,180 @@ elif st.session_state.krok == 3:
     st.write("Nejprve zadejte počáteční délku drátu $l_0$ a její chybu (zjistíte na vývěsce v laboratoři).")
     col_l0, col_err_l0 = st.columns(2)
     with col_l0:
-        st.session_state.l0 = st.text_input("Původní délka drátu $l_0$ [m]:", value=st.session_state.l0)
+        st.session_state.l0 = st.text_input("Původní délka drátu $l_0$ (m):", value=st.session_state.l0)
     with col_err_l0:
-        st.session_state.err_l0 = st.text_input("Chyba délky drátu $\Delta l_0$ [mm]:", value=st.session_state.err_l0)
+        st.session_state.err_l0 = st.text_input("Chyba délky drátu $\Delta l_0$ (mm):", value=st.session_state.err_l0)
         
     st.markdown("---")
     st.subheader("Tabulka prodloužení")
     
-    c1, c2, c3, c4 = st.columns([1.5, 2.5, 2.5, 1.5])
-    c1.markdown("**m (kg)**")
-    c2.markdown("**Zatěž. $\Delta l_1$**(mm)")
-    c3.markdown("**Odlehč. $\Delta l_2$**(mm)")
-    c4.markdown("**Průměr**(mm)")
-    
+    # Úprava na 5 sloupců pro vložení síly F
+    c1, c2, c3, c4, c5 = st.columns([1.0, 1.2, 2.0, 2.0, 1.5])
+    with c1:
+        st.write("**m [kg]**")
+    with c2:
+        st.write("**F [N]**") # NOVÝ SLOUPEC
+    with c3:
+        st.write("**Zatěžování [mm]**")
+    with c4:
+        st.write("**Odlehčování [mm]**")
+    with c5:
+        st.write("**Průměr [mm]**")
+        
     vse_vyplneno = True
     
     for h in hmotnosti:
+        # Pět sloupců i pro samotné řádky s daty
+        c1, c2, c3, c4, c5 = st.columns([1.0, 1.2, 2.0, 2.0, 1.5])
         key = str(h).replace('.', '_')
-        c1, c2, c3, c4 = st.columns([1.5, 2.5, 2.5, 1.5])
         
         with c1:
-            st.markdown(f"<div style='margin-top: 10px;'><b>{h}</b></div>", unsafe_allow_html=True)
+            # Zobrazení hmotnosti
+            st.info(f"{h:.1f}")
+            
         with c2:
-            st.session_state[f'zatez_{key}'] = st.text_input(f"z_{key}", value=st.session_state[f'zatez_{key}'], label_visibility="collapsed")
+            # NOVÉ: Výpočet a zobrazení síly F = m * 9.81
+            sila = h * 9.81
+            st.info(f"{sila:.2f}")
+            
         with c3:
-            st.session_state[f'odleh_{key}'] = st.text_input(f"o_{key}", value=st.session_state[f'odleh_{key}'], label_visibility="collapsed")
+            st.session_state[f'zatez_{key}'] = st.text_input("Zatěž", value=st.session_state.get(f'zatez_{key}', ""), key=f"z_{key}", label_visibility="collapsed")
+                
         with c4:
+            st.session_state[f'odleh_{key}'] = st.text_input("Odleh", value=st.session_state.get(f'odleh_{key}', ""), key=f"o_{key}", label_visibility="collapsed")
+            
+        with c5:
             z_val_str = st.session_state[f'zatez_{key}'].replace(',', '.')
             o_val_str = st.session_state[f'odleh_{key}'].replace(',', '.')
             try:
-                if z_val_str != "" and o_val_str != "":
-                    prumer = (float(z_val_str) + float(o_val_str)) / 2
-                    st.info(f"{prumer:.5f}")
-                else:
-                    st.write("...")
-                    vse_vyplneno = False
+                prumer = (float(z_val_str) + float(o_val_str)) / 2
+                st.info(f"{prumer:.3f}")
             except ValueError:
-                st.error("Chyba")
+                st.warning("?")
                 vse_vyplneno = False
-                
+
     st.markdown("---")
+    
     col_back, col_fwd = st.columns(2)
     with col_back:
         if st.button("Zpět na Krok 2"):
             st.session_state.krok = 2
             st.rerun()
-            
     with col_fwd:
         if vse_vyplneno:
-            if st.button("Přejít na graf (Krok 4)"):
+            if st.button("Přejít ke grafu a analýze (Krok 4)"):
                 st.session_state.krok = 4
                 st.rerun()
         else:
-            st.warning("Doplňte všechny hodnoty.")
+            st.warning("Pro pokračování doplňte všechny hodnoty.")
 
 # ==========================================
 # KROK 4: Interaktivní graf
 # ==========================================
 elif st.session_state.krok == 4:
     st.header("Krok 4: Zpracování grafu")
+    st.write("Z naměřených hodnot nyní sestrojíme graf závislosti prodloužení na síle.")
     
-    g_konst = 9.81
-    sily_F = [m * g_konst for m in hmotnosti]
-    
+    # 1. Získání dat z paměti (Kroku 3)
+    hmotnosti = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    sily_F = [h * 9.81 for h in hmotnosti]
     prumerna_dl = []
+    
     for h in hmotnosti:
         key = str(h).replace('.', '_')
-        z_val = float(st.session_state[f'zatez_{key}'].replace(',', '.'))
-        o_val = float(st.session_state[f'odleh_{key}'].replace(',', '.'))
+        z_val = float(st.session_state.get(f'zatez_{key}', 0).replace(',', '.')) if st.session_state.get(f'zatez_{key}', '') != '' else 0.0
+        o_val = float(st.session_state.get(f'odleh_{key}', 0).replace(',', '.')) if st.session_state.get(f'odleh_{key}', '') != '' else 0.0
         prumerna_dl.append((z_val + o_val) / 2)
         
-    sum_xy = sum(f * dl for f, dl in zip(sily_F, prumerna_dl))
-    sum_xx = sum(f**2 for f in sily_F)
-    a_skutecne = sum_xy / sum_xx if sum_xx != 0 else 0
-    st.session_state.a_skutecne = a_skutecne # Uložíme pro výpočet E
-    
-    # NOVÉ: Výpočet skutečné chyby směrnice a (z rozptylu reziduí)
+    # 2. Skutečná regrese (y = ax + b)
     n = len(sily_F)
-    if n > 1 and sum_xx != 0:
-        suma_rezidui = sum((dl - a_skutecne * f)**2 for f, dl in zip(sily_F, prumerna_dl))
-        rozptyl = suma_rezidui / (n - 1)
-        err_a = math.sqrt(rozptyl / sum_xx)
+    sum_x = sum(sily_F)
+    sum_y = sum(prumerna_dl)
+    sum_xy = sum(x*y for x, y in zip(sily_F, prumerna_dl))
+    sum_xx = sum(x**2 for x in sily_F)
+    
+    jmenovatel = (n * sum_xx - sum_x**2)
+    if jmenovatel != 0:
+        a_skutecne = (n * sum_xy - sum_x * sum_y) / jmenovatel
+        b_skutecne = (sum_y - a_skutecne * sum_x) / n
+    else:
+        a_skutecne = 0.0
+        b_skutecne = 0.0
+        
+    st.session_state.a_skutecne = a_skutecne 
+    
+    # Výpočet skutečné chyby směrnice a (z rozptylu reziduí)
+    if n > 2 and jmenovatel != 0:
+        suma_rezidui = sum((y - (a_skutecne * x + b_skutecne))**2 for x, y in zip(sily_F, prumerna_dl))
+        rozptyl = suma_rezidui / (n - 2) # n-2 stupňů volnosti pro přímku s absolutním členem
+        err_a = math.sqrt((n * rozptyl) / jmenovatel)
     else:
         err_a = 0.0
     st.session_state.err_a = err_a
     
-    st.info("Zkuste pomocí posuvníku natočit přímku tak, aby co nejlépe prokládala vaše body.")
-    hruby_odhad = max(prumerna_dl) / max(sily_F) if max(sily_F) > 0 else 0.01
+    # 3. Interaktivní posuvníky (Výchozí bod je záměrně mimo)
+    st.info("💡 **Váš úkol:** Přímka v grafu je nyní zcela mimo naměřené body (má nulový sklon). Použijte oba posuvníky tak, abyste přímku co nejlépe proložili vašimi body.")
     
-    a_odhad = st.slider("Vaše směrnice a (mm/N):", min_value=0.0, max_value=float(hruby_odhad * 2), value=float(hruby_odhad * 0.5), step=0.000001, format="%.6f")
-
+    col_b, col_a = st.columns(2)
+    with col_b:
+        # Posuvník B (Počáteční posun) - začíná záměrně např. na 0.1 mm
+        b_odhad = st.slider("Počáteční posun b [mm]:", min_value=-0.500, max_value=0.500, value=0.100, step=0.001, format="%.3f")
+    with col_a:
+        # Posuvník A (Směrnice) - začíná na 0 (vodorovná čára)
+        hruby_odhad = (prumerna_dl[-1] - prumerna_dl[0]) / (sily_F[-1] - sily_F[0]) if sily_F[-1] != sily_F[0] else 0.01
+        a_odhad = st.slider("Směrnice a [mm/N]:", min_value=-float(hruby_odhad), max_value=float(hruby_odhad * 3), value=0.00000, step=0.00001, format="%.5f")
+        
+    # 4. Vykreslení interaktivního grafu
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=sily_F, y=prumerna_dl, mode='markers', name='Vaše měření', marker=dict(size=10, color='red')))
-    line_x = [0, max(sily_F)]
-    line_y = [0, a_odhad * max(sily_F)]
-    fig.add_trace(go.Scatter(x=line_x, y=line_y, mode='lines', name='Váš odhad přímky', line=dict(color='blue', width=3)))
     
-    fig.update_layout(title="Závislost prodloužení drátu na síle", xaxis_title="Síla F [N]", yaxis_title="Prodloužení \Delta l [mm]", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01), margin=dict(l=0, r=0, t=40, b=0))
+    # Naměřené body
+    fig.add_trace(go.Scatter(x=sily_F, y=prumerna_dl, mode='markers', name='Naměřené body', marker=dict(size=10, color='red')))
+    
+    # Odhadnutá přímka
+    x_line = [0, max(sily_F) * 1.1] if sily_F else [0, 50]
+    y_line = [a_odhad * x + b_odhad for x in x_line]
+    fig.add_trace(go.Scatter(x=x_line, y=y_line, mode='lines', name='Vaše přímka', line=dict(color='blue', width=2)))
+    
+    # 4.1 Bezpečné zjištění maximálních hodnot pro správné nastavení os
+    max_F = max(sily_F) if sily_F else 50
+    max_dl = max(prumerna_dl) if prumerna_dl and max(prumerna_dl) > 0 else 0.5
+
+    # 4.2 Nastavení os grafu, mřížky a viditelného počátku (0,0)
+    fig.update_layout(
+        xaxis_title="Zatěžující síla F [N]",
+        yaxis_title="Průměrné prodloužení Δl [mm]",
+        plot_bgcolor='white', # Bílé pozadí pro vyniknutí mřížky
+        xaxis=dict(
+            zeroline=True, zerolinewidth=2, zerolinecolor='black', # Vykreslí výraznou osu Y
+            showgrid=True, gridwidth=1, gridcolor='lightgray',     # Hlavní mřížka
+            minor=dict(showgrid=True, gridcolor='whitesmoke'),     # Jemná (milimetrová) mřížka
+            range=[-max_F * 0.05, max_F * 1.1]                     # Graf začne lehce v mínusu (posun od okraje)
+        ),
+        yaxis=dict(
+            zeroline=True, zerolinewidth=2, zerolinecolor='black', # Vykreslí výraznou osu X
+            showgrid=True, gridwidth=1, gridcolor='lightgray',
+            minor=dict(showgrid=True, gridcolor='whitesmoke'),
+            range=[-max_dl * 0.1, max_dl * 1.2]                    # Osa Y začne lehce v mínusu
+        ),
+        margin=dict(l=20, r=20, t=30, b=20)
+    )
     st.plotly_chart(fig, use_container_width=True)
     
-    st.markdown("---")
-    
+    # 5. Odhalení výpočtu
     if st.button("Odhalit výpočet metodou nejmenších čtverců"):
         st.session_state.odhaleno = True
         
     if st.session_state.odhaleno:
         st.markdown("### Porovnání metod a výpočet")
         
-        # 1. Zobrazení výsledku z posuvníku
         st.write(f"**1. Grafická metoda (Váš vizuální odhad):**")
-        st.write(f"$a_{{odhad}} = {a_odhad:.6f} \\text{{ mm/N}}$")
+        st.write(f"Rovnice: $\\Delta l = {a_odhad:.5f} \\cdot F + ({b_odhad:.3f})$")
         
-        # 2. Rozepsání metody nejmenších čtverců
         st.write("**2. Numerická metoda (Nejmenší čtverce):**")
-        st.write("Pro přímku procházející počátkem ($y = ax$) se směrnice vypočítá vztahem:")
+        st.write("Počítač proložil body ideální přímkou $y = aF + b$. Hodnota $b$ představuje absolutní člen (počáteční nepřesnost a vůli aparatury). Pro výpočet modulu pružnosti nás zajímá pouze naklonění, tedy směrnice $a$.")
         
-        # Vzorec v LaTeXu
-        st.latex(r"a = \frac{\sum (F_i \cdot \Delta l_i)}{\sum F_i^2}")
-        
-        # Vzorec s dosazenými mezivýsledky (sumami)
-        st.latex(rf"a = \frac{{{sum_xy:.4f}}}{{{sum_xx:.4f}}}")
-        
-        # Finální přesný výsledek
-        st.success(f"Přesná hodnota směrnice: **$a = {a_skutecne:.6f} \\text{{ mm/N}}$**")
-        
-        # 3. Závěrečné zhodnocení s vysvětlující větou
-        st.info("💡 **Závěr:** Grafická metoda (odhad z grafu) je skvělá pro rychlou kontrolu, ale není úplně přesná. Proto pro finální výpočet modulu pružnosti použijeme přesnější výsledek z numerické metody.")
+        st.success(f"Přesná hodnota směrnice: **$a = {a_skutecne:.5f} \\text{{ mm/N}}$**")
+        st.info(f"Počáteční posun (vůle aparatury): **$b = {b_skutecne:.3f} \\text{{ mm}}$**")
         
         if st.button("Přejít na Závěr a Otázky (Krok 5)"):
             st.session_state.krok = 5
@@ -446,14 +531,7 @@ elif st.session_state.krok == 5:
     except ZeroDivisionError:
         E_GPa = 0
         
-    # --- ZOBRAZENÍ VZORCŮ A VÝSLEDKU E ---
-    st.subheader("1. Výpočet modulu pružnosti $E$")
-    st.write("Obecný definiční vzorec pro výpočet Youngova modulu pružnosti v tahu:")
-    st.latex(r"E = \frac{4 l_0}{\pi d^2 a}")
     
-    st.write("Po dosazení vašich zjištěných hodnot převedených na základní jednotky SI (metry, Newtony):")
-    st.latex(rf"E = \frac{{4 \cdot {l0}}}{{\pi \cdot ({d_mm} \cdot 10^{{-3}})^2 \cdot {a_mmn:.5f} \cdot 10^{{-3}}}}")
-    st.info(f"Předběžný výsledek: **E = {E_GPa:.2f} GPa**")
     
     # --- VÝPOČET CELKOVÉ CHYBY ---
     st.subheader("2. Výpočet celkové chyby měření")
