@@ -3,7 +3,6 @@ import plotly.graph_objects as go
 import math
 import unicodedata     # NOVÉ: Pro odstranění diakritiky
 from fpdf import FPDF  # NOVÉ: Pro generování PDF
-import io              # NOVÉ: Pro práci s daty v paměti
 from datetime import datetime  # NOVÉ: Pro získání aktuálního data a času
 
 # 1. Nastavení vzhledu aplikace
@@ -465,7 +464,7 @@ elif st.session_state.krok == 4:
     if st.session_state.odhaleno:
         st.markdown("### Porovnání metod a výpočet")
         
-        st.write(f"**1. Grafická metoda (Váš vizuální odhad):**")
+        st.write("**1. Grafická metoda (Váš vizuální odhad):**")
         st.write(f"Rovnice: $\\Delta l = {a_odhad:.5f} \\cdot F + ({b_odhad:.3f})$")
         
         st.write("**2. Numerická metoda (Nejmenší čtverce):**")
@@ -489,10 +488,17 @@ elif st.session_state.krok == 4:
 elif st.session_state.krok == 5:
     st.header("Krok 5: Finále a výpočet chyby")
     
-    # 1. Získání hodnot z paměti
-    l0 = float(st.session_state.l0.replace(',', '.'))
+    # 1. Bezpečné načtení hodnot z paměti
+    try:
+        l0 = float(st.session_state.l0.replace(',', '.'))
+        err_l0_mm = float(st.session_state.err_l0.replace(',', '.')) # Zadáno z vývěsky
+    except ValueError:
+        st.warning("⚠️ Chybí nebo je špatně zadána původní délka drátu (l0) či její chyba. Prosím, vraťte se do Kroku 3 a zkontrolujte, že jsou obě pole vyplněna číslem.")
+        st.stop() # Zastaví výpočet a zabrání pádu aplikace s červenou chybou
+        
     d_mm = st.session_state.skutecny_prumer
     a_mmn = st.session_state.a_skutecne
+    err_a_mmn = st.session_state.err_a # Skutečná chyba z regrese
     
     # Převod na základní jednotky SI
     d_m = d_mm * 1e-3
@@ -512,30 +518,6 @@ elif st.session_state.krok == 5:
     st.write("Po dosazení vašich zjištěných hodnot převedených na základní jednotky SI (metry, Newtony):")
     st.latex(rf"E = \frac{{4 \cdot {l0}}}{{\pi \cdot ({d_mm} \cdot 10^{{-3}})^2 \cdot {a_mmn:.5f} \cdot 10^{{-3}}}}")
     st.info(f"Předběžný výsledek: **E = {E_GPa:.2f} GPa**")
-    
-   # 1. Získání hodnot z paměti (doplněno o načtení chyb)
-try:
-    l0 = float(st.session_state.l0.replace(',', '.'))
-    err_l0_mm = float(st.session_state.err_l0.replace(',', '.')) # Zadáno z vývěsky
-except ValueError:
-    st.warning("⚠️ Chybí nebo je špatně zadána původní délka drátu (l0) či její chyba. Prosím, vraťte se do Kroku 3 a zkontrolujte, že jsou obě pole vyplněna číslem.")
-    st.stop() # Zastaví výpočet a zabrání pádu aplikace s červenou chybou
-    
-    d_mm = st.session_state.skutecny_prumer
-    a_mmn = st.session_state.a_skutecne
-    err_a_mmn = st.session_state.err_a # Skutečná chyba z regrese
-    
-    # Převod na základní jednotky SI
-    d_m = d_mm * 1e-3
-    a_mn = a_mmn * 1e-3
-    
-    try:
-        E_Pa = (4 * l0) / (math.pi * (d_m**2) * a_mn)
-        E_GPa = E_Pa / 1e9
-    except ZeroDivisionError:
-        E_GPa = 0
-        
-    
     
     # --- VÝPOČET CELKOVÉ CHYBY ---
     st.subheader("2. Výpočet celkové chyby měření")
@@ -561,22 +543,12 @@ except ValueError:
     
     # --- FINÁLNÍ ZÁPIS PODLE PŘEDPISU ---
     if abs_E_GPa > 0:
-        # 1. Zjistíme řád první nenulové číslice chyby
         rad = -math.floor(math.log10(abs_E_GPa))
-        
-        # 2. Zaokrouhlíme chybu na tuto první platnou číslici
         abs_E_zaokr = round(abs_E_GPa, rad)
-        
-        # 3. Ošetření "přetečení" (např. chyba 9.6 se zaokrouhlí na 10.0, čímž se jí změní řád)
         if abs_E_zaokr >= 10**(-(rad - 1)):
             rad -= 1
             abs_E_zaokr = round(abs_E_GPa, rad)
-            
-        # 4. Zaokrouhlíme samotný výsledek na stejný počet míst (na stejný řád) jako chybu
         E_zaokr = round(E_GPa, rad)
-        
-        # 5. Ošetření pro formátovaný výpis: 
-        # Pokud je rad záporný (zaokrouhlujeme na desítky či stovky GPa), nesmíme chtít vypsat záporný počet desetinných míst
         format_rad = max(0, rad)
     else:
         abs_E_zaokr = 0.0
@@ -584,27 +556,10 @@ except ValueError:
         format_rad = 1
         
     st.markdown("### Finální výsledek měření")
-    
     st.write(r"Podle laboratorních pravidel zapisujeme výsledek v normovaném tvaru $X=(\overline{x}\pm\overline{\vartheta}(x))$:")
-    
     st.success(f"$$E = ({E_zaokr:.{format_rad}f} \\pm {abs_E_zaokr:.{format_rad}f}) \\text{{ GPa}} \\quad \\dots \\quad {(rel_E*100):.1f} \\text{{ \\%}}$$")
+    st.markdown("---")      
     
-    st.markdown("---")
-    
-    # --- FINÁLNÍ ZÁPIS PODLE PŘEDPISU ---
-    # Zaokrouhlení odchylky na 1 platnou číslici
-    if abs_E_GPa > 0:
-        rad = -math.floor(math.log10(abs_E_GPa))
-        if rad < 0: # Pokud je chyba > 10 GPa (např. 15 GPa), zaokrouhlíme na jednotky nebo desítky
-            rad = 0 
-        abs_E_zaokr = round(abs_E_GPa, rad)
-        E_zaokr = round(E_GPa, rad)
-    else:
-        abs_E_zaokr = 0
-        E_zaokr = E_GPa
-        rad = 1
-         
-    st.markdown("---")
     st.subheader("3. Kontrolní otázky")
     st.info("Odpovězte na následující otázky, abyste prokázali pochopení úlohy.")
     
@@ -625,27 +580,22 @@ except ValueError:
             st.rerun()
             
     with col_fwd:
-        # Nastavení minimálních limitů (můžeš si libovolně změnit)
         limit_otazky = 50
         limit_zaver = 100
         
-        # Zjištění skutečné délky textu bez mezer na začátku a na konci
         delka_o1 = len(st.session_state.otazka_1.strip())
         delka_o2 = len(st.session_state.otazka_2.strip())
         delka_o3 = len(st.session_state.otazka_3.strip())
         delka_z = len(st.session_state.zaver.strip())
         
-        # Kontrola, zda jsou všechny limity splněny
         if delka_o1 >= limit_otazky and delka_o2 >= limit_otazky and delka_o3 >= limit_otazky and delka_z >= limit_zaver:
             st.success("Všechny odpovědi jsou dostatečně podrobné.")
             if st.button("Ukončit a Odeslat protokol"):
                 st.session_state.krok = 6
                 st.rerun()
         else:
-            # Pokud není splněno, tlačítko pro odeslání se neukáže a vypíše se dynamické varování
             st.warning("⚠️ Pro odeslání protokolu musíte odpovědět na všechny otázky a napsat závěr dostatečně podrobně.")
             
-            # Vizuální nápověda pro studenty, kolik jim ještě chybí znaků
             if delka_o1 < limit_otazky: 
                 st.write(f"- **Otázka 1:** {delka_o1}/{limit_otazky} znaků")
             if delka_o2 < limit_otazky: 
@@ -662,7 +612,7 @@ elif st.session_state.krok == 6:
     st.header("Krok 6: Generování a uložení protokolu 🎉")
     st.balloons()
     st.success(f"Všechny výpočty jsou hotové! Děkujeme za práci, {st.session_state.jmeno}.")
-    
+            
     # 1. Funkce pro odstranění diakritiky
     def bez_diakritiky(text):
         if not text:
