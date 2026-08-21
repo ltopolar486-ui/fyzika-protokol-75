@@ -513,9 +513,13 @@ elif st.session_state.krok == 5:
     st.latex(rf"E = \frac{{4 \cdot {l0}}}{{\pi \cdot ({d_mm} \cdot 10^{{-3}})^2 \cdot {a_mmn:.5f} \cdot 10^{{-3}}}}")
     st.info(f"Předběžný výsledek: **E = {E_GPa:.2f} GPa**")
     
-    # 1. Získání hodnot z paměti (doplněno o načtení chyb)
+   # 1. Získání hodnot z paměti (doplněno o načtení chyb)
+try:
     l0 = float(st.session_state.l0.replace(',', '.'))
     err_l0_mm = float(st.session_state.err_l0.replace(',', '.')) # Zadáno z vývěsky
+except ValueError:
+    st.warning("⚠️ Chybí nebo je špatně zadána původní délka drátu (l0) či její chyba. Prosím, vraťte se do Kroku 3 a zkontrolujte, že jsou obě pole vyplněna číslem.")
+    st.stop() # Zastaví výpočet a zabrání pádu aplikace s červenou chybou
     
     d_mm = st.session_state.skutecny_prumer
     a_mmn = st.session_state.a_skutecne
