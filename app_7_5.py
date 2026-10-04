@@ -4,6 +4,8 @@ import math
 import unicodedata     # NOVÉ: Pro odstranění diakritiky
 from fpdf import FPDF  # NOVÉ: Pro generování PDF
 from datetime import datetime  # NOVÉ: Pro získání aktuálního data a času
+import io  # NOVÉ: Pro držení obrázku grafu v paměti
+import matplotlib.pyplot as plt # NOVÉ: Spolehlivá knihovna pro vyfocení grafu do PDF
 
 # 1. Nastavení vzhledu aplikace
 st.set_page_config(page_title="7.5 Modul pružnosti v tahu přímou metodou", layout="centered")
@@ -13,8 +15,8 @@ st.set_page_config(page_title="7.5 Modul pružnosti v tahu přímou metodou", la
 # ==========================================
 st.markdown("""
     <style>
-        /* Zmenšení běžného textu a odstavců */
-        html, body, p, div, span {
+        /* Zmenšení běžného textu a odstavců (bez narušení LaTeX vzorců) */
+        html, body, p {
             font-size: 16px !important;
         }
         
@@ -41,6 +43,11 @@ st.markdown("""
         }
         h3 {
             font-size: 16px !important;
+        }
+        
+        /* Drobná horní vycpávka, aby se exponenty do rámečku s jistotou vešly */
+        .katex-display {
+            padding-top: 0.5em !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -193,7 +200,7 @@ if st.session_state.krok == 1:
     st.header("Laboratorní podmínky")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.session_state.tlak = st.text_input("Tlak (hPa)", value=st.session_state.tlak)
+        st.session_state.tlak = st.text_input("Tlak (kPa)", value=st.session_state.tlak)
     with col2:
         st.session_state.teplota = st.text_input("Teplota (°C)", value=st.session_state.teplota)
     with col3:
@@ -214,17 +221,20 @@ elif st.session_state.krok == 2:
     cols = st.columns(5)
     for i in range(5):
         with cols[i]:
-            st.session_state[f'd{i+1}'] = st.text_input(f"d{i+1}", value=st.session_state[f'd{i+1}'])
+            st.session_state[f'd{i+1}'] = st.text_input(f"d{i+1} (mm)", value=st.session_state[f'd{i+1}'])
             
     st.markdown("---")
     st.subheader("Ověření výpočtu")
     st.warning("⚠️ **Pozor:** Nezapomeňte svůj vypočtený průměr správně zaokrouhlit na **3 desetinná místa**!")
     st.session_state.student_prumer = st.text_input("Váš vypočtený průměr [mm]:", value=st.session_state.student_prumer)
     
+    # NOVÉ: Hmatatelné tlačítko pro explicitní aktualizaci na mobilech a po návratu
+    if st.button("🔄 Aktualizovat a ověřit výpočet"):
+        pass # Streamlit po stisknutí tlačítka automaticky uloží všechna rozepsaná pole a stránku znovunačte
+        
     try:
         d_vals = [float(st.session_state[f'd{i}'].replace(',', '.')) for i in range(1, 6)]
         skutecny_prumer = sum(d_vals) / 5
-        # Uložíme do paměti pro pozdější výpočet E
         st.session_state.skutecny_prumer = skutecny_prumer 
         
         if st.session_state.student_prumer.strip() != "":
@@ -232,50 +242,35 @@ elif st.session_state.krok == 2:
             
             if abs(student_val - skutecny_prumer) <= 0.0015:
                 st.success("Trefa! Průměr máte vypočítaný i zaokrouhlený správně. 🔓 Protokol je odemčen.")
-                # --- ZAČÁTEK NOVÉHO KÓDU PRO TECHNICKÝ ZÁPIS S EXPONENTEM ---
-                # 1. Znovuvypočítání odchylek a chyb (v mm)
+                
+                # --- VÝPOČET A ZOBRAZENÍ V TECHNICKÉM ZÁPISU (Pevně 10^-3) ---
                 odchylky = [abs(val - skutecny_prumer) for val in d_vals]
                 prumerna_odchylka_mm = sum(odchylky) / 5
-                relativni_chyba = (prumerna_odchylka_mm / skutecny_prumer) * 100
+                relativni_chyba = (prumerna_odchylka_mm / skutecny_prumer) * 100 if skutecny_prumer != 0 else 0
                 
-                # 2. Převod na základní SI jednotku (metry)
-                prumer_m = skutecny_prumer * 1e-3
-                odchylka_m = prumerna_odchylka_mm * 1e-3
+                # Pevné nastavení řádu na milimetry (10^-3 m)
+                exponent = -3
+                zaklad_prumer = skutecny_prumer
+                zaklad_odchylka = prumerna_odchylka_mm
                 
-                # 3. Určení společného exponentu (řádu) podle průměru
-                if prumer_m > 0:
-                    exponent = math.floor(math.log10(prumer_m))
-                else:
-                    exponent = 0
-                    
-                # 4. Přepočet hodnot na "základní" číslo před mocninou
-                zaklad_prumer = prumer_m / (10**exponent)
-                zaklad_odchylka = odchylka_m / (10**exponent)
-                
-                # 5. Nalezení první platné nenulové číslice pro zaokrouhlení odchylky (z upraveného základu)
+                # Nalezení první platné nenulové číslice odchylky pro zaokrouhlení
                 if zaklad_odchylka > 0:
                     pocet_mist = -math.floor(math.log10(zaklad_odchylka))
                     zaokrouhlena_odchylka = round(zaklad_odchylka, pocet_mist)
-                    # Ošetření přetečení (např. 0.096 zaokrouhleno na 2 místa dá 0.10 -> posun řádu)
                     if zaokrouhlena_odchylka >= 10**(-(pocet_mist - 1)):
                         pocet_mist -= 1
                         zaokrouhlena_odchylka = round(zaklad_odchylka, pocet_mist)
                 else:
-                    pocet_mist = 2
+                    pocet_mist = 3 # Výchozí pro čistou nulu (mikrometr)
                     zaokrouhlena_odchylka = 0.0
                     
-                # Ošetření pro případ, že by počet míst vyšel záporný
                 pocet_mist = max(0, pocet_mist)
                 zaokrouhleny_prumer = round(zaklad_prumer, pocet_mist)
                 
-                # 6. Zobrazení v předepsaném technickém tvaru s mocninou 10
                 st.write("**Výsledek měření (v základních jednotkách SI):**")
-                
-                # Vykreslení LaTex vzorce s dynamickým exponentem
                 st.latex(rf"d = ({zaokrouhleny_prumer:.{pocet_mist}f} \pm {zaokrouhlena_odchylka:.{pocet_mist}f}) \cdot 10^{{{exponent}}} \text{{ m}} \quad \dots \quad {relativni_chyba:.2f} \text{{ \%}}")
                 st.markdown("---")
-                # --- KONEC NOVÉHO KÓDU ---
-                
+                # --- KONEC VÝPOČTU ---
                 
                 if st.button("Pokračovat k zatěžování drátu (Krok 3)"):
                     st.session_state.krok = 3
@@ -300,7 +295,7 @@ elif st.session_state.krok == 3:
     with col_l0:
         st.session_state.l0 = st.text_input("Původní délka drátu $l_0$ (m):", value=st.session_state.l0)
     with col_err_l0:
-        st.session_state.err_l0 = st.text_input("Chyba délky drátu $\Delta l_0$ (mm):", value=st.session_state.err_l0)
+        st.session_state.err_l0 = st.text_input(r"Chyba délky drátu $\Delta l_0$ (m):", value=st.session_state.err_l0)
         
     st.markdown("---")
     st.subheader("Tabulka prodloužení")
@@ -308,17 +303,18 @@ elif st.session_state.krok == 3:
     # Úprava na 5 sloupců pro vložení síly F
     c1, c2, c3, c4, c5 = st.columns([1.0, 1.2, 2.0, 2.0, 1.5])
     with c1:
-        st.write("**m [kg]**")
+        st.write("**m (kg)**")
     with c2:
-        st.write("**F [N]**") # NOVÝ SLOUPEC
+        st.write("**F (N)**") # NOVÝ SLOUPEC
     with c3:
-        st.write("**Zatěžování [mm]**")
+        st.write("**Zatěžování (mm)**")
     with c4:
-        st.write("**Odlehčování [mm]**")
+        st.write("**Odlehčování (mm)**")
     with c5:
-        st.write("**Průměr [mm]**")
+        st.write("**Průměr (mm)**")
         
     vse_vyplneno = True
+    vse_nuly = True  # NOVÉ: Hlídač, zda jsou všechny vstupy čisté nuly
     
     for h in hmotnosti:
         # Pět sloupců i pro samotné řádky s daty
@@ -326,11 +322,9 @@ elif st.session_state.krok == 3:
         key = str(h).replace('.', '_')
         
         with c1:
-            # Zobrazení hmotnosti
             st.info(f"{h:.1f}")
             
         with c2:
-            # NOVÉ: Výpočet a zobrazení síly F = m * 9.81
             sila = h * 9.81
             st.info(f"{sila:.2f}")
             
@@ -344,26 +338,61 @@ elif st.session_state.krok == 3:
             z_val_str = st.session_state[f'zatez_{key}'].replace(',', '.')
             o_val_str = st.session_state[f'odleh_{key}'].replace(',', '.')
             try:
-                prumer = (float(z_val_str) + float(o_val_str)) / 2
+                z_val = float(z_val_str)
+                o_val = float(o_val_str)
+                prumer = (z_val + o_val) / 2
                 st.info(f"{prumer:.3f}")
+                
+                # Zrušení nultého stavu, pokud je cokoliv nenulové
+                if z_val != 0.0 or o_val != 0.0:
+                    vse_nuly = False
+                    
             except ValueError:
                 st.warning("?")
                 vse_vyplneno = False
 
     st.markdown("---")
     
+    # NOVÉ: Kontrola zadané délky drátu l0 a její chyby
+    l0_ok = False
+    try:
+        if st.session_state.l0.strip() != "":
+            float(st.session_state.l0.replace(',', '.'))
+            l0_ok = True
+    except ValueError:
+        pass
+
+    err_l0_ok = False
+    try:
+        if st.session_state.err_l0.strip() != "":
+            float(st.session_state.err_l0.replace(',', '.'))
+            err_l0_ok = True
+    except ValueError:
+        pass
+    
     col_back, col_fwd = st.columns(2)
     with col_back:
         if st.button("Zpět na Krok 2"):
             st.session_state.krok = 2
             st.rerun()
+            
     with col_fwd:
-        if vse_vyplneno:
-            if st.button("Přejít ke grafu a analýze (Krok 4)"):
-                st.session_state.krok = 4
-                st.rerun()
+        # Větvení logiky pro pokračování
+        if not (l0_ok and err_l0_ok):
+            st.warning("⚠️ Než budete moci pokračovat, musíte nahoře vyplnit platnou původní délku drátu a její chybu.")
+        elif not vse_vyplneno:
+            st.warning("⚠️ Pro pokračování doplňte všechny hodnoty prodloužení do tabulky.")
         else:
-            st.warning("Pro pokračování doplňte všechny hodnoty.")
+            if vse_nuly:
+                st.warning("🤔 Všechny zadané hodnoty prodloužení jsou nulové. Pokud je to správně (např. test), potvrďte to níže:")
+                if st.checkbox("Ano, chci pokračovat se samými nulami."):
+                    if st.button("Přejít ke grafu a analýze (Krok 4)"):
+                        st.session_state.krok = 4
+                        st.rerun()
+            else:
+                if st.button("Přejít ke grafu a analýze (Krok 4)"):
+                    st.session_state.krok = 4
+                    st.rerun()
 
 # ==========================================
 # KROK 4: Interaktivní graf
@@ -488,10 +517,10 @@ elif st.session_state.krok == 4:
 elif st.session_state.krok == 5:
     st.header("Krok 5: Finále a výpočet chyby")
     
-    # 1. Bezpečné načtení hodnot z paměti
+   # 1. Bezpečné načtení hodnot z paměti
     try:
         l0 = float(st.session_state.l0.replace(',', '.'))
-        err_l0_mm = float(st.session_state.err_l0.replace(',', '.')) # Zadáno z vývěsky
+        err_l0 = float(st.session_state.err_l0.replace(',', '.')) # Zadáno z vývěsky v metrech
     except ValueError:
         st.warning("⚠️ Chybí nebo je špatně zadána původní délka drátu (l0) či její chyba. Prosím, vraťte se do Kroku 3 a zkontrolujte, že jsou obě pole vyplněna číslem.")
         st.stop() # Zastaví výpočet a zabrání pádu aplikace s červenou chybou
@@ -500,65 +529,163 @@ elif st.session_state.krok == 5:
     a_mmn = st.session_state.a_skutecne
     err_a_mmn = st.session_state.err_a # Skutečná chyba z regrese
     
-    # Převod na základní jednotky SI
+    # --- VÝPOČTY PRO SHRNUTÍ A KONTROLU (NA POZADÍ) ---
     d_m = d_mm * 1e-3
-    a_mn = a_mmn * 1e-3
+    a_m_N = a_mmn * 1e-3
+    err_a_m_N = err_a_mmn * 1e-3
     
-    try:
-        E_Pa = (4 * l0) / (math.pi * (d_m**2) * a_mn)
-        E_GPa = E_Pa / 1e9
-    except ZeroDivisionError:
-        E_GPa = 0
-        
-    # --- ZOBRAZENÍ VZORCŮ A VÝSLEDKU E ---
-    st.subheader("1. Výpočet modulu pružnosti $E$")
-    st.write("Obecný definiční vzorec pro výpočet Youngova modulu pružnosti v tahu:")
-    st.latex(r"E = \frac{4 l_0}{\pi d^2 a}")
-    
-    st.write("Po dosazení vašich zjištěných hodnot převedených na základní jednotky SI (metry, Newtony):")
-    st.latex(rf"E = \frac{{4 \cdot {l0}}}{{\pi \cdot ({d_mm} \cdot 10^{{-3}})^2 \cdot {a_mmn:.5f} \cdot 10^{{-3}}}}")
-    st.info(f"Předběžný výsledek: **E = {E_GPa:.2f} GPa**")
-    
-    # --- VÝPOČET CELKOVÉ CHYBY ---
-    st.subheader("2. Výpočet celkové chyby měření")
-    st.write("Celková relativní chyba výsledku $\\delta_E$ se určí jako součet relativních chyb dílčích veličin. Všimněte si, že chyba průměru $d$ se díky mocnině ve jmenovateli násobí dvěma!")
-    
-    # Výpočet dílčích relativních chyb
     d_vals = [float(st.session_state[f'd{i}'].replace(',', '.')) for i in range(1, 6)]
     odchylka_d_mm = sum(abs(val - d_mm) for val in d_vals) / 5
-    rel_d = odchylka_d_mm / d_mm if d_mm != 0 else 0
+    odchylka_d_m = odchylka_d_mm * 1e-3
     
-    # Dosazení reálných chyb
-    rel_l0 = (err_l0_mm * 1e-3) / l0 if l0 != 0 else 0
-    rel_a = err_a_mmn / a_mmn if a_mmn != 0 else 0
+    rel_d = odchylka_d_m / d_m if d_m != 0 else 0
+    rel_l0 = err_l0 / l0 if l0 != 0 else 0
+    rel_a = err_a_m_N / a_m_N if a_m_N != 0 else 0
+    rel_E = math.sqrt(rel_l0**2 + (2 * rel_d)**2 + rel_a**2)
     
-    rel_E = rel_l0 + (2 * rel_d) + rel_a
-    abs_E_GPa = E_GPa * rel_E
-    
-    # Zobrazení postupu výpočtu chyby (s dosazenými konkrétními procenty)
-    st.latex(r"\delta_E = \frac{\Delta l_0}{l_0} + 2\frac{\Delta d}{d} + \frac{\Delta a}{a}")
-    st.latex(rf"\delta_E = {(rel_l0*100):.4f}\% + 2 \cdot {(rel_d*100):.4f}\% + {(rel_a*100):.4f}\% = {(rel_E*100):.2f}\%")
-    
-    st.write(f"Z této relativní chyby program vypočítal absolutní odchylku $\\Delta E = {abs_E_GPa:.2f} \\text{{ GPa}}$.")
-    
-    # --- FINÁLNÍ ZÁPIS PODLE PŘEDPISU ---
-    if abs_E_GPa > 0:
-        rad = -math.floor(math.log10(abs_E_GPa))
-        abs_E_zaokr = round(abs_E_GPa, rad)
-        if abs_E_zaokr >= 10**(-(rad - 1)):
-            rad -= 1
-            abs_E_zaokr = round(abs_E_GPa, rad)
-        E_zaokr = round(E_GPa, rad)
-        format_rad = max(0, rad)
-    else:
-        abs_E_zaokr = 0.0
-        E_zaokr = E_GPa
-        format_rad = 1
+    try:
+        E_Pa = (4 * l0) / (math.pi * (d_m**2) * a_m_N)
+        E_GPa = E_Pa / 1e9
+    except ZeroDivisionError:
+        E_Pa = 0
+        E_GPa = 0
         
-    st.markdown("### Finální výsledek měření")
-    st.write(r"Podle laboratorních pravidel zapisujeme výsledek v normovaném tvaru $X=(\overline{x}\pm\overline{\vartheta}(x))$:")
-    st.success(f"$$E = ({E_zaokr:.{format_rad}f} \\pm {abs_E_zaokr:.{format_rad}f}) \\text{{ GPa}} \\quad \\dots \\quad {(rel_E*100):.1f} \\text{{ \\%}}$$")
-    st.markdown("---")      
+    abs_E_GPa = E_GPa * rel_E
+
+    # --- ZOBRAZENÍ 1: SHRNUTÍ VELIČIN ---
+    st.subheader("1. Shrnutí naměřených veličin (SI jednotky)")
+    st.write("Pro výpočet modulu pružnosti musíme nejprve převést všechny hodnoty na základní jednotky SI (metry, Newtony). Program automaticky zformátoval hodnoty podle velikosti absolutní chyby:")
+    
+    # Pomocná funkce pro správné formátování s exponentem a zaokrouhlením
+    def format_vysledek(nazev, hodnota, chyba, jednotka, forced_exponent=None):
+        if chyba == 0:
+            return rf"{nazev} = {hodnota} \text{{ {jednotka}}}"
+            
+        if forced_exponent is not None:
+            exponent = forced_exponent
+        else:
+            if hodnota != 0:
+                exponent = math.floor(math.log10(abs(hodnota)))
+                if -2 <= exponent <= 2: # Pro běžná čísla (0.01 až 999) exponent nevnucujeme
+                    exponent = 0
+            else:
+                exponent = 0
+                
+        zaklad_hodnota = hodnota / (10**exponent)
+        zaklad_chyba = chyba / (10**exponent)
+        
+        # Zaokrouhlení chyby na 1 platnou číslici
+        if zaklad_chyba > 0:
+            rad = -math.floor(math.log10(zaklad_chyba))
+            chyba_zaokr = round(zaklad_chyba, rad)
+            if chyba_zaokr >= 10**(-(rad - 1)):
+                rad -= 1
+                chyba_zaokr = round(zaklad_chyba, rad)
+        else:
+            rad = 0
+            chyba_zaokr = 0.0
+            
+        hodnota_zaokr = round(zaklad_hodnota, rad)
+        pocet_mist = max(0, rad)
+        
+        # Český formát s čárkou
+        h_str = f"{hodnota_zaokr:.{pocet_mist}f}".replace('.', ',')
+        ch_str = f"{chyba_zaokr:.{pocet_mist}f}".replace('.', ',')
+        rel_str = f"{(chyba / abs(hodnota) * 100):.2f}".replace('.', ',')
+        
+        if exponent != 0:
+            return rf"{nazev} = ({h_str} \pm {ch_str}) \cdot 10^{{{exponent}}} \text{{ {jednotka}}} \quad \dots \quad {rel_str} \text{{ \%}}"
+        else:
+            return rf"{nazev} = ({h_str} \pm {ch_str}) \text{{ {jednotka}}} \quad \dots \quad {rel_str} \text{{ \%}}"
+
+    st.latex(format_vysledek("l_0", l0, err_l0, "m"))
+    st.latex(format_vysledek("d", d_m, odchylka_d_m, "m", forced_exponent=-3))
+    st.latex(format_vysledek("a", a_m_N, err_a_m_N, "m/N"))
+    st.markdown("---")
+
+    # --- ZOBRAZENÍ 2: VÝPOČET E ---
+    st.subheader("2. Výpočet modulu pružnosti $E$")
+    st.write("Dosad'te hodnoty ze shrnutí výše do definičního vzorce a zapište váš výsledek ve vědeckém tvaru.")
+    st.latex(r"E = \frac{4 l_0}{\pi d^2 a}")
+    
+    col_z, col_kr, col_e, col_pa = st.columns([2.0, 0.5, 1.5, 1.0])
+    with col_z:
+        student_E_zaklad = st.text_input("Základ (např. 2.05)", key="se_zaklad")
+    with col_kr:
+        st.markdown("<h3 style='text-align: center; margin-top: 10px;'>&middot; 10</h3>", unsafe_allow_html=True)
+    with col_e:
+        student_E_exp = st.text_input("Exponent (např. 11)", key="se_exp")
+    with col_pa:
+        st.markdown("<h3 style='margin-top: 10px;'>Pa</h3>", unsafe_allow_html=True)
+
+    # --- ZOBRAZENÍ 3: VÝPOČET CHYB ---
+    st.subheader("3. Výpočet celkové relativní chyby")
+    st.write("Doplňte dílčí relativní chyby v procentech a zjistěte celkovou relativní chybu $\\rho(E)$ pomocí věty o přenosu chyb (odmocnina ze součtu čtverců). Zvláštní pozornost věnujte chybě průměru!")
+    st.latex(r"\rho(E) = \sqrt{\rho(l_0)^2 + (2\rho(d))^2 + \rho(a)^2}")
+    
+    c_rl0, c_rd, c_ra, c_re = st.columns(4)
+    with c_rl0:
+        student_rl0 = st.text_input("ρ(l0) [%]", key="s_rl0")
+    with c_rd:
+        student_rd = st.text_input("ρ(d) [%]", key="s_rd")
+    with c_ra:
+        student_ra = st.text_input("ρ(a) [%]", key="s_ra")
+    with c_re:
+        student_rE = st.text_input("Celková ρ(E) [%]", key="s_rE")
+
+    st.markdown("---")
+    
+   # --- VYHODNOCENÍ A FINÁLE ---
+    vse_ok = False
+    
+    if student_E_zaklad and student_E_exp and student_rl0 and student_rd and student_ra and student_rE:
+        try:
+            s_zaklad = float(student_E_zaklad.replace(',', '.'))
+            s_exp = float(student_E_exp.replace(',', '.'))
+            s_E_Pa = s_zaklad * (10**s_exp)
+            
+            s_l0 = float(student_rl0.replace(',', '.'))
+            s_d = float(student_rd.replace(',', '.'))
+            s_a = float(student_ra.replace(',', '.'))
+            s_E_rel = float(student_rE.replace(',', '.'))
+            
+            # Tolerance pro drobné rozdíly v zaokrouhlování na kalkulačce studentů
+            e_match = abs(s_E_Pa - E_Pa) / E_Pa < 0.02 if E_Pa != 0 else False
+            err_match = (
+                abs(s_l0 - rel_l0*100) < 0.15 and
+                abs(s_d - rel_d*100) < 0.15 and
+                abs(s_a - rel_a*100) < 0.15 and
+                abs(s_E_rel - rel_E*100) < 0.3
+            )
+            
+            if e_match and err_match:
+                st.success("🎉 Výborně! Váš modul pružnosti i výpočet chyby jsou naprosto přesné.")
+                vse_ok = True
+            elif not e_match:
+                st.error("❌ Výsledek modulu pružnosti zatím nesouhlasí. Zkontrolujte dosazení čísel a exponentů.")
+            elif not err_match:
+                st.error("❌ Modul E je správně, ale v relativních chybách máte nepřesnost. Nezapomněli jste vynásobit chybu průměru 2x a použít odmocninu ze součtu čtverců?")
+        except ValueError:
+            st.warning("⚠️ Do všech polí zadejte platná čísla.")
+            
+    if vse_ok:
+        st.markdown("### Finální výsledek měření")
+        st.write(r"Podle laboratorních pravidel program vygeneroval zápis výsledku v normovaném tvaru $X=(\overline{x}\pm\overline{\vartheta}(x))$:")
+        
+        # Absolutní chyba v základních jednotkách (Pa)
+        abs_E_Pa = E_Pa * rel_E
+        
+        # Přečtení exponentu zadaného studentem pro formátování finálního výsledku
+        s_exp_val = int(float(student_E_exp.replace(',', '.')))
+        
+        # Využití naší univerzální formátovací funkce
+        final_latex = format_vysledek("E", E_Pa, abs_E_Pa, "Pa", forced_exponent=s_exp_val)
+        
+        st.success(f"$${final_latex}$$")
+    else:
+        st.info("🔒 Vypočítejte modul a doplňte správné chyby pro odemčení finálního normovaného zápisu.")
+        
+    st.markdown("---")
     
     st.subheader("3. Kontrolní otázky")
     st.info("Odpovězte na následující otázky, abyste prokázali pochopení úlohy.")
@@ -588,13 +715,13 @@ elif st.session_state.krok == 5:
         delka_o3 = len(st.session_state.otazka_3.strip())
         delka_z = len(st.session_state.zaver.strip())
         
-        if delka_o1 >= limit_otazky and delka_o2 >= limit_otazky and delka_o3 >= limit_otazky and delka_z >= limit_zaver:
-            st.success("Všechny odpovědi jsou dostatečně podrobné.")
+        if delka_o1 >= limit_otazky and delka_o2 >= limit_otazky and delka_o3 >= limit_otazky and delka_z >= limit_zaver and vse_ok:
+            st.success("Všechny odpovědi i matematické výpočty jsou v pořádku.")
             if st.button("Ukončit a Odeslat protokol"):
                 st.session_state.krok = 6
                 st.rerun()
         else:
-            st.warning("⚠️ Pro odeslání protokolu musíte odpovědět na všechny otázky a napsat závěr dostatečně podrobně.")
+            st.warning("⚠️ Pro odeslání protokolu musíte bezchybně vypočítat modul E (včetně chyb), a odpovědět na všechny otázky v požadované délce.")
             
             if delka_o1 < limit_otazky: 
                 st.write(f"- **Otázka 1:** {delka_o1}/{limit_otazky} znaků")
@@ -634,7 +761,7 @@ elif st.session_state.krok == 6:
     aktualni_cas = datetime.now().strftime("%d. %m. %Y %H:%M:%S")
     
     # ---------------------------------------------------------
-    # NOVÉ: Znovuvýpočet E a jeho chyby pro zápis do PDF
+    # 4. Znovuvýpočet E a jeho chyby pro zápis do PDF
     # ---------------------------------------------------------
     l0_val = float(st.session_state.l0.replace(',', '.'))
     err_l0_val = float(st.session_state.err_l0.replace(',', '.'))
@@ -653,18 +780,18 @@ elif st.session_state.krok == 6:
     except ZeroDivisionError:
         E_GPa_val = 0
         
-    # Výpočet celkové chyby
+    # Výpočet celkové chyby kvadraticky
     d_vals_arr = [float(st.session_state[f'd{i}'].replace(',', '.')) for i in range(1, 6)]
     odchylka_d_val = sum(abs(v - d_mm_val) for v in d_vals_arr) / 5
     
     rel_d_val = odchylka_d_val / d_mm_val if d_mm_val != 0 else 0
-    rel_l0_val = (err_l0_val * 1e-3) / l0_val if l0_val != 0 else 0
+    rel_l0_val = err_l0_val / l0_val if l0_val != 0 else 0
     rel_a_val = err_a_val / a_mmn_val if a_mmn_val != 0 else 0
     
-    rel_E_val = rel_l0_val + (2 * rel_d_val) + rel_a_val
+    rel_E_val = math.sqrt(rel_l0_val**2 + (2 * rel_d_val)**2 + rel_a_val**2)
     abs_E_GPa_val = E_GPa_val * rel_E_val
     
-    # Zaokrouhlení
+    # Zaokrouhlení pro hrubý výpis v PDF
     if abs_E_GPa_val > 0:
         rad_val = -math.floor(math.log10(abs_E_GPa_val))
         abs_E_zaokr_val = round(abs_E_GPa_val, rad_val)
@@ -678,72 +805,160 @@ elif st.session_state.krok == 6:
         E_zaokr_val = E_GPa_val
         format_rad_val = 1
         
-    text_vysledek_E = f"{E_zaokr_val:.{format_rad_val}f} +/- {abs_E_zaokr_val:.{format_rad_val}f} GPa  (rel. chyba {rel_E_val*100:.1f} %)"
+    text_vysledek_E = f"{E_zaokr_val:.{format_rad_val}f} ± {abs_E_zaokr_val:.{format_rad_val}f} GPa  (relativní chyba {rel_E_val*100:.1f} %)".replace('.', ',')
+
     # ---------------------------------------------------------
+    # 5. Znovuvytvoření grafu a jeho vyfocení do paměti (Matplotlib)
+    # ---------------------------------------------------------
+    with st.spinner("Generuji graf a PDF dokument..."):
+        hmotnosti_pdf = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+        sily_pdf = [h * 9.81 for h in hmotnosti_pdf]
+        prumerna_dl_pdf = []
+        
+        for h in hmotnosti_pdf:
+            key = str(h).replace('.', '_')
+            try:
+                z = float(st.session_state.get(f'zatez_{key}', '0').replace(',', '.'))
+                o = float(st.session_state.get(f'odleh_{key}', '0').replace(',', '.'))
+                prumerna_dl_pdf.append((z + o) / 2)
+            except ValueError:
+                prumerna_dl_pdf.append(0.0)
 
-    # 4. Vytvoření PDF dokumentu v paměti
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Časové razítko (šedé, vpravo nahoře)
-    pdf.set_font("helvetica", style="I", size=10)
-    pdf.set_text_color(150, 150, 150)
-    pdf.cell(0, 10, text=bez_diakritiky(f"Vygenerovano systemem: {aktualni_cas}"), new_x="LMARGIN", new_y="NEXT", align="R")
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(5)
-    
-    # Pomocná funkce pro snadný zápis řádků
-    def zapis_radek(text, font_style="", size=12):
-        pdf.set_font("helvetica", style=font_style, size=size)
-        pdf.cell(0, 10, text=bez_diakritiky(text), new_x="LMARGIN", new_y="NEXT")
+        # Matematický výpočet posunu b
+        a_pdf = st.session_state.a_skutecne
+        n_pdf = len(sily_pdf)
+        sum_x = sum(sily_pdf)
+        sum_y = sum(prumerna_dl_pdf)
+        b_pdf = (sum_y - a_pdf * sum_x) / n_pdf if n_pdf > 0 else 0
 
-    # Hlavička protokolu
-    zapis_radek("PROTOKOL O MERENI - Uloha 7.5", "B", 16)
-    zapis_radek(f"Vypracoval: {st.session_state.jmeno}")
-    zapis_radek(f"Spolupracovnik: {st.session_state.spolupracovnik}")
-    zapis_radek(f"Skupina: {st.session_state.skupina}")
-    zapis_radek(f"Podminky: {st.session_state.tlak} hPa, {st.session_state.teplota} C, {st.session_state.vlhkost} %")
-    pdf.ln(5)
-    
-    # Výsledky
-    zapis_radek("HLAVNI VYSLEDKY", "B", 14)
-    zapis_radek(f"Prumer dratu (d): {st.session_state.student_prumer} mm")
-    zapis_radek(f"Puvodni delka (l0): {st.session_state.l0} m")
-    zapis_radek(f"Smernice z regrese (a): {st.session_state.a_skutecne:.5f} mm/N")
-    
-    # NOVÉ: Přidání výsledného modulu E do PDF
-    pdf.ln(2)
-    zapis_radek(f"MODUL PRUZNOSTI (E): {text_vysledek_E}", "B", 12)
-    pdf.ln(5)
-    
-    # Otázky a závěr
-    zapis_radek("ODPOVEDI A ZAVER", "B", 14)
-    
-    zapis_radek("Otazka 1:", "B", 12)
-    pdf.set_font("helvetica", size=12)
-    pdf.multi_cell(0, 8, text=bez_diakritiky(st.session_state.otazka_1))
-    pdf.ln(2)
-    
-    zapis_radek("Otazka 2:", "B", 12)
-    pdf.set_font("helvetica", size=12)
-    pdf.multi_cell(0, 8, text=bez_diakritiky(st.session_state.otazka_2))
-    pdf.ln(2)
-    
-    zapis_radek("Otazka 3:", "B", 12)
-    pdf.set_font("helvetica", size=12)
-    pdf.multi_cell(0, 8, text=bez_diakritiky(st.session_state.otazka_3))
-    pdf.ln(2)
-    
-    zapis_radek("Zaver:", "B", 12)
-    pdf.set_font("helvetica", size=12)
-    pdf.multi_cell(0, 8, text=bez_diakritiky(st.session_state.zaver))
+        # Konstrukce vizuálu pomocí Matplotlib
+        fig_pdf, ax = plt.subplots(figsize=(8, 4.5))
+        
+        ax.plot(sily_pdf, prumerna_dl_pdf, 'ro', markersize=8, label='Naměřené body')
+        x_line = [0, max(sily_pdf) * 1.1] if sily_pdf else [0, 50]
+        y_line = [a_pdf * x + b_pdf for x in x_line]
+        ax.plot(x_line, y_line, 'b-', linewidth=2, label='Regresní přímka')
 
-    # 5. Vygenerování PDF a předání do stahovacího tlačítka
+        ax.set_title("Graf závislosti prodloužení na síle")
+        ax.set_xlabel("Zatěžující síla F [N]")
+        ax.set_ylabel("Průměrné prodloužení Δl [mm]")
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.legend()
+        
+        # Zvýraznění os X a Y
+        ax.axhline(0, color='black', linewidth=1)
+        ax.axvline(0, color='black', linewidth=1)
+
+        max_f_pdf = max(sily_pdf) if sily_pdf else 50
+        max_dl_pdf = max(prumerna_dl_pdf) if prumerna_dl_pdf and max(prumerna_dl_pdf) > 0 else 0.5
+        ax.set_xlim(left=-max_f_pdf * 0.05, right=max_f_pdf * 1.1)
+        ax.set_ylim(bottom=-max_dl_pdf * 0.1, top=max_dl_pdf * 1.2)
+
+        # Vyfocení grafu jako PNG do virtuálního souboru v paměti
+        img_stream = io.BytesIO()
+        fig_pdf.savefig(img_stream, format='png', bbox_inches='tight', dpi=150)
+        img_stream.seek(0)
+        plt.close(fig_pdf) # Uvolnění paměti
+
+        # ---------------------------------------------------------
+        # 6. Vytvoření PDF dokumentu v paměti
+        # ---------------------------------------------------------
+        pdf = FPDF()
+        pdf.add_page()
+        
+        # --- NOVÉ: Načtení českého fontu z Windows ---
+        import os
+        use_diacritics = False
+        font_name = "helvetica" # Záložní font
+        
+        font_regular = r"C:\Windows\Fonts\arial.ttf"
+        font_bold = r"C:\Windows\Fonts\arialbd.ttf"
+        
+        # Pokud najde Arial ve Windows, nahraje ho a zapne češtinu
+        if os.path.exists(font_regular) and os.path.exists(font_bold):
+            try:
+                pdf.add_font("ArialCS", "", font_regular)
+                pdf.add_font("ArialCS", "B", font_bold)
+                font_name = "ArialCS"
+                use_diacritics = True
+            except:
+                pass
+                
+        # Chytrá funkce: Pokud má font, nechá háčky. Pokud ne, odstraní je.
+        def uprav_text(text):
+            if not text: return ""
+            if use_diacritics:
+                return str(text)
+            return bez_diakritiky(text)
+        
+       # Časové razítko (menší šedé, bez kurzívy)
+        pdf.set_font(font_name, style="", size=9)
+        pdf.set_text_color(150, 150, 150)
+        pdf.cell(0, 8, text=uprav_text(f"Vygenerováno systémem: {aktualni_cas}"), new_x="LMARGIN", new_y="NEXT", align="R")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(3)
+        
+        # Pomocná funkce pro zápis řádků (Zmenšeno z 12 na 11)
+        def zapis_radek(text, font_style="", size=11):
+            pdf.set_font(font_name, style=font_style, size=size)
+            pdf.cell(0, 7, text=uprav_text(text), new_x="LMARGIN", new_y="NEXT")
+
+       # Hlavička protokolu (Zmenšené nadpisy a sdružené řádky)
+        zapis_radek("PROTOKOL O MĚŘENÍ - Úloha 7.5", "B", 14)
+        zapis_radek(f"Vypracoval: {st.session_state.jmeno}   |   Spolupracovník: {st.session_state.spolupracovnik}")
+        
+        tlak_cs = str(st.session_state.tlak).replace('.', ',')
+        teplota_cs = str(st.session_state.teplota).replace('.', ',')
+        vlhkost_cs = str(st.session_state.vlhkost).replace('.', ',')
+        zapis_radek(f"Skupina: {st.session_state.skupina}   |   Podmínky: {tlak_cs} hPa; {teplota_cs} °C; {vlhkost_cs} %")
+        pdf.ln(4)
+        
+        # Výsledky (Sdružené do jednoho řádku s českými čárkami)
+        zapis_radek("HLAVNÍ VÝSLEDKY", "B", 12)
+        d_cs = str(st.session_state.student_prumer).replace('.', ',')
+        l0_cs = str(st.session_state.l0).replace('.', ',')
+        a_cs = f"{st.session_state.a_skutecne:.5f}".replace('.', ',')
+        zapis_radek(f"d = {d_cs} mm   |   l0 = {l0_cs} m   |   a = {a_cs} mm/N")
+        
+        pdf.ln(2)
+        zapis_radek(f"MODUL PRUŽNOSTI (E): {text_vysledek_E}", "B", 11)
+        pdf.ln(4)
+        
+        # Vložení vyfoceného grafu do PDF (Zmenšený a vycentrovaný)
+        zapis_radek("GRAF ZÁVISLOSTI PRODLOUŽENÍ NA SÍLE", "B", 12)
+        # Šířka zmenšena ze 170 na 140, posunuto zleva (x=35) doprostřed A4
+        pdf.image(img_stream, x=35, w=140) 
+        pdf.ln(4)
+        
+        # Otázky a závěr
+        zapis_radek("ODPOVĚDI A ZÁVĚR", "B", 12)
+        
+        zapis_radek("Otázka 1:", "B", 11)
+        pdf.set_font(font_name, size=11)
+        # Zmenšené řádkování pro multi_cell (z 8 na 6)
+        pdf.multi_cell(0, 6, text=uprav_text(st.session_state.otazka_1)) 
+        pdf.ln(2)
+        
+        zapis_radek("Otázka 2:", "B", 11)
+        pdf.set_font(font_name, size=11)
+        pdf.multi_cell(0, 6, text=uprav_text(st.session_state.otazka_2))
+        pdf.ln(2)
+        
+        zapis_radek("Otázka 3:", "B", 11)
+        pdf.set_font(font_name, size=11)
+        pdf.multi_cell(0, 6, text=uprav_text(st.session_state.otazka_3))
+        pdf.ln(2)
+        
+        zapis_radek("Závěr:", "B", 11)
+        pdf.set_font(font_name, size=11)
+        pdf.multi_cell(0, 6, text=uprav_text(st.session_state.zaver))
+
+    # 7. Vygenerování PDF a předání do stahovacího tlačítka
     pdf_bytes = bytes(pdf.output())
     
     st.markdown("---")
     st.download_button(
-        label="📄 Stáhnout protokol v PDF",
+        label="📄 Stáhnout protokol v PDF (včetně grafu a české diakritiky)",
         data=pdf_bytes,
         file_name=nazev_souboru,
         mime="application/pdf"
