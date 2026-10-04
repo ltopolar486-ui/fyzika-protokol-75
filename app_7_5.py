@@ -692,11 +692,11 @@ elif st.session_state.krok == 5:
     
     st.session_state.otazka_1 = st.text_area("1. Jak se směrnice 'a' grafu změní, pokud bychom k měření použili ocelový drát o stejném složení a délce, ale s dvojnásobným průměrem?", value=st.session_state.otazka_1)
     st.session_state.otazka_2 = st.text_area("2. Proč je nutné měřit prodloužení drátu při zatěžování i postupném odlehčování? Co by znamenalo, kdyby se lišily?", value=st.session_state.otazka_2)
-    st.session_state.otazka_3 = st.text_area("3. Jak by se na grafu projevilo, kdybyste drát zatížili silou, která by překročila mez úměrnosti materiálu?", value=st.session_state.otazka_3)
+    st.session_state.otazka_3 = st.text_area("3. Kde jste se již setkali či byste se mohli setkat s modulem pružnosti v tahu ve stavební praxi?", value=st.session_state.otazka_3)
     
     st.markdown("---")
     st.subheader("Závěr")
-    st.session_state.zaver = st.text_area("Zhodnoťte měření. Srovnejte váš výsledek s tabulkovou hodnotou (pro ocel cca 210 GPa) a zamyslete se nad zdroji chyb:", value=st.session_state.zaver)
+    st.session_state.zaver = st.text_area("Zhodnoťte měření. Srovnejte váš výsledek s tabulkovou hodnotou a zamyslete se nad zdroji chyb. Napište, jak se Vám úloha líbila/nelíbila, čím bychom ji mohli vylepšit?:", value=st.session_state.zaver)
     
     st.markdown("---")
     col_back, col_fwd = st.columns(2)
