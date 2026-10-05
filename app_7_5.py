@@ -124,69 +124,186 @@ if st.session_state.krok == 0:
     st.header("Krok 0: Vstupní test znalostí")
     st.info("Před zahájením samotného měření musíte prokázat základní teoretické znalosti k této úloze. Pro odemčení protokolu odpovězte správně alespoň na 6 ze 7 otázek.")
     
-    # Databáze otázek
-    otazky = [
-        {
-            "q": "Které z následujících tvrzení nejlépe popisuje Hookův zákon pro tah v oblasti pružných deformací?",
-            "opts": ["Prodloužení drátu je nepřímo úměrné působící síle.", "Normálové napětí je přímo úměrné relativnímu prodloužení materiálu.", "Modul pružnosti materiálu roste s rostoucím napětím.", "Deformace materiálu je trvalá a po odlehčení nezmizí."],
-            "ans": "Normálové napětí je přímo úměrné relativnímu prodloužení materiálu."
-        },
-        {
-            "q": "Jaká je základní fyzikální jednotka Youngova modulu pružnosti v tahu E v soustavě SI?",
-            "opts": ["Newton (N)", "Newton na metr (N/m)", "Pascal (Pa)", "Jedná se o bezrozměrnou veličinu."],
-            "ans": "Pascal (Pa)"
-        },
-        {
-            "q": "Jak se vypočítá relativní (poměrné) prodloužení drátu?",
-            "opts": ["Jako prostý rozdíl konečné a původní délky drátu.", "Jako podíl změny délky a původní délky drátu.", "Jako součin zatěžující síly a změny délky.", "Jako podíl původní délky a změny délky."],
-            "ans": "Jako podíl změny délky a původní délky drátu."
-        },
-        {
-            "q": "Ve vzorci pro výpočet modulu pružnosti figuruje průměr drátu d. S jakou mocninou se tento průměr ve vzorci nachází a proč?",
-            "opts": ["V první mocnině (d), protože průměr je lineární rozměr.", "Ve druhé mocnině (d^2), protože napětí závisí na obsahu kruhového průřezu drátu.", "Ve třetí mocnině (d^3), protože modul pružnosti charakterizuje objemové vlastnosti tělesa.", "Průměr drátu ve vzorci vůbec nefiguruje."],
-            "ans": "Ve druhé mocnině (d^2), protože napětí závisí na obsahu kruhového průřezu drátu."
-        },
-        {
-            "q": "Která měřená veličina vnáší při experimentálním stanovení modulu pružnosti tenkého drátu do výsledku obvykle největší relativní chybu?",
-            "opts": ["Hmotnost použitých závaží.", "Atmosférický tlak v laboratoři.", "Původní délka drátu.", "Průměr drátu."],
-            "ans": "Průměr drátu."
-        },
-        {
-            "q": "Proč se při laboratoři zaznamenává prodloužení drátu jak při postupném zatěžování, tak i při postupném odlehčování závažími?",
-            "opts": ["Abychom získali více bodů do grafu a ušetřili čas.", "Aby se ověřilo, že nedošlo k překročení meze kluzu a k trvalé plastické deformaci drátu.", "Protože při odlehčování je modul pružnosti materiálů vždy vyšší.", "Jedná se pouze o kontrolu tření v kladce."],
-            "ans": "Aby se ověřilo, že nedošlo k překročení meze kluzu a k trvalé plastické deformaci drátu."
-        },
-        {
-            "q": "Co fyzikálně představuje směrnice (sklon) regresní přímky v grafu závislosti prodloužení na zatěžující síle F?",
-            "opts": ["Pevnost drátu v tahu (mez pevnosti).", "Přímo samotný modul pružnosti materiálu E.", "Prodloužení drátu způsobené jednotkovou silou (např. 1 N).", "Plochu příčného průřezu drátu."],
-            "ans": "Prodloužení drátu způsobené jednotkovou silou (např. 1 N)."
-        }
-    ]
-    
-    # Vykreslení otázek (index=None znamená, že není předem nic zakliknuto)
+    # --- 1. NATAŽENÍ DATABÁZE A LOSOVÁNÍ (do paměti) ---
+    if 'vybrane_otazky' not in st.session_state:
+        import random
+        
+        # Kompletní zásobník 21 otázek
+        databaze_otazek = [
+            # Okruh 1: Hookův zákon a modul pružnosti
+            {
+                "okruh": 1,
+                "q": "Jak zní Hookův zákon pro tah zapsaný pomocí normálového napětí σ a relativního prodloužení ε?",
+                "opts": ["σ = ε / E", "σ = E · ε", "σ = E + ε", "σ = E · ε²"],
+                "ans": "σ = E · ε"
+            },
+            {
+                "okruh": 1,
+                "q": "Proč má modul pružnosti E stejnou jednotku jako napětí?",
+                "opts": ["Protože modul pružnosti je definován jako síla působící na jednotku délky drátu.", "Protože prodloužení drátu se měří v metrech.", "Protože relativní prodloužení ε je bezrozměrná veličina.", "Shoda jednotek je náhodná a nemá fyzikální důvod."],
+                "ans": "Protože relativní prodloužení ε je bezrozměrná veličina."
+            },
+            {
+                "okruh": 1,
+                "q": "Jak se změní modul pružnosti E, změříme-li drát ze stejného materiálu, ale s dvojnásobnou délkou a dvojnásobným průměrem?",
+                "opts": ["Zdvojnásobí se.", "Zmenší se na polovinu.", "Zčtyřnásobí se.", "Nezmění se, protože modul pružnosti je materiálová konstanta."],
+                "ans": "Nezmění se, protože modul pružnosti je materiálová konstanta."
+            },
+            # Okruh 2: Meze a druhy deformací, smysl odlehčovací řady
+            {
+                "okruh": 2,
+                "q": "Co platí pro deformaci drátu, dokud napětí nepřekročí mez pružnosti?",
+                "opts": ["Deformace je vratná – po odlehčení zcela vymizí.", "Deformace je trvalá, ale nepřesahuje setiny milimetru.", "Drát se prodlužuje i bez dalšího zvyšování zatížení.", "Prodloužení je nepřímo úměrné působící síle."],
+                "ans": "Deformace je vratná – po odlehčení zcela vymizí."
+            },
+            {
+                "okruh": 2,
+                "q": "Co nastane po překročení meze kluzu?",
+                "opts": ["Drát se okamžitě přetrhne.", "Vzniká trvalá (plastická) deformace, která po odlehčení nezmizí.", "Modul pružnosti materiálu se zdvojnásobí.", "Prodloužení drátu přestane záviset na zatížení."],
+                "ans": "Vzniká trvalá (plastická) deformace, která po odlehčení nezmizí."
+            },
+            {
+                "okruh": 2,
+                "q": "Podle čeho během měření poznáte, že drát zůstal v oblasti pružných deformací?",
+                "opts": ["Při zatěžování se ručička indikátorových hodinek pohybuje stále rychleji.", "Prodloužení při posledním závaží je větší než 1 mm.", "Mikrometr ukáže po zatížení větší průměr drátu než před ním.", "Po úplném odlehčení se ručička indikátorových hodinek vrátí (v rámci přesnosti odečtu) na počáteční údaj."],
+                "ans": "Po úplném odlehčení se ručička indikátorových hodinek vrátí (v rámci přesnosti odečtu) na počáteční údaj."
+            },
+            # Okruh 3: Napětí, průřez a odvození vztahu pro E
+            {
+                "okruh": 3,
+                "q": "Který vztah pro výpočet modulu pružnosti E je uveden v návodu (a = Δl / F)?",
+                "opts": ["E = π·d²·a / (4·l₀)", "E = 4·l₀ / (π·d²·a)", "E = 4·l₀·a / (π·d²)", "E = 4·l₀ / (π·d·a)"],
+                "ans": "E = 4·l₀ / (π·d²·a)"
+            },
+            {
+                "okruh": 3,
+                "q": "Jak se při stejné zatěžující síle změní prodloužení drátu ze stejného materiálu a stejné délky, má-li dvojnásobný průměr?",
+                "opts": ["Bude dvakrát menší.", "Bude dvakrát větší.", "Bude čtyřikrát menší.", "Nezmění se."],
+                "ans": "Bude čtyřikrát menší."
+            },
+            {
+                "okruh": 3,
+                "q": "Co označuje veličina S ve vztahu pro napětí σ = F / S?",
+                "opts": ["Obvod průřezu drátu, S = π·d.", "Povrch pláště drátu, S = π·d·l₀.", "Obsah příčného průřezu drátu, S = π·d².", "Obsah příčného průřezu drátu, S = π·d² / 4."],
+                "ans": "Obsah příčného průřezu drátu, S = π·d² / 4."
+            },
+            # Okruh 4: Směrnice a, graf Δl = f(F)
+            {
+                "okruh": 4,
+                "q": "Jakou jednotku má směrnice a = Δl / F?",
+                "opts": ["m·N⁻¹ (v praxi mm·N⁻¹)", "N·m⁻¹", "Pa", "Je bezrozměrná."],
+                "ans": "m·N⁻¹ (v praxi mm·N⁻¹)"
+            },
+            {
+                "okruh": 4,
+                "q": "Jak souvisí sklon přímky v grafu Δl = f(F) s modulem pružnosti E při stejných rozměrech drátu?",
+                "opts": ["Čím větší sklon, tím větší modul pružnosti E.", "Sklon přímky je přímo roven modulu pružnosti E.", "Čím menší sklon (směrnice a), tím větší modul pružnosti E.", "Sklon přímky na modulu pružnosti nezávisí."],
+                "ans": "Čím menší sklon (směrnice a), tím větší modul pružnosti E."
+            },
+            {
+                "okruh": 4,
+                "q": "Jak by se v grafu Δl = f(F) projevilo překročení meze úměrnosti?",
+                "opts": ["Přímka by procházela přesně počátkem souřadnic.", "Směrnice přímky by vyšla záporná.", "Na grafu by se to neprojevilo, změnil by se jen průměr drátu.", "Naměřené body by se odchylovaly od přímky."],
+                "ans": "Naměřené body by se odchylovaly od přímky."
+            },
+            # Okruh 5: Chyby měření
+            {
+                "okruh": 5,
+                "q": "Proč se relativní chyba průměru drátu uplatní ve výsledné relativní chybě modulu pružnosti dvojnásobně?",
+                "opts": ["Protože se průměr měří ve dvou na sebe kolmých směrech.", "Protože průměr d vystupuje ve vztahu pro E ve druhé mocnině.", "Protože se měří při zatěžování i při odlehčování.", "Protože mikrometr odečítá na dvě desetinná místa."],
+                "ans": "Protože průměr d vystupuje ve vztahu pro E ve druhé mocnině."
+            },
+            {
+                "okruh": 5,
+                "q": "Relativní chyba průměru drátu je 1 %. Jak velkou relativní chybou se tato nepřesnost promítne do modulu pružnosti E?",
+                "opts": ["0,5 %", "1 %", "2 %", "4 %"],
+                "ans": "2 %"
+            },
+            {
+                "okruh": 5,
+                "q": "Relativní chyby kterých veličin se podle návodu skládají do relativní chyby modulu pružnosti E?",
+                "opts": ["Délky drátu l₀, průměru drátu d a čísla π.", "Délky drátu l₀, průměru drátu d a směrnice a.", "Pouze průměru drátu d.", "Tíhového zrychlení g, atmosférického tlaku a teploty v laboratoři."],
+                "ans": "Délky drátu l₀, průměru drátu d a směrnice a."
+            },
+            # Okruh 6: Postup měření
+            {
+                "okruh": 6,
+                "q": "Jak se podle návodu správně měří průměr drátu d?",
+                "opts": ["Opakovaně na různých místech podél drátu a v různých směrech, s odhadem tisícin milimetru.", "Jednou uprostřed drátu, s přesností na desetiny milimetru.", "Opakovaně na stále stejném místě, aby se vyloučil vliv nerovnoměrnosti drátu.", "Průměr se neměří, je uveden na vývěsce v laboratoři."],
+                "ans": "Opakovaně na různých místech podél drátu a v různých směrech, s odhadem tisícin milimetru."
+            },
+            {
+                "okruh": 6,
+                "q": "Jak se při měření průměru drátu dotahuje měřicí šroub mikrometru?",
+                "opts": ["Co nejpevněji, aby drát v mikrometru neprokluzoval.", "Na síle dotažení nezáleží.", "Citlivě pomocí řehtačky (ráčny), aby se drát nestlačil.", "Šroub se nedotahuje, průměr se odhaduje pohledem na stupnici."],
+                "ans": "Citlivě pomocí řehtačky (ráčny), aby se drát nestlačil."
+            },
+            {
+                "okruh": 6,
+                "q": "Na misku byla přidána závaží o celkové hmotnosti 1,5 kg. Jaká je zatěžující síla F (g = 9,81 m·s⁻²)?",
+                "opts": ["0,15 N", "1,5 N", "14,7 N", "147 N"],
+                "ans": "14,7 N"
+            },
+            # Okruh 7: Modul pružnosti ve stavební praxi
+            {
+                "okruh": 7,
+                "q": "Jaká hodnota modulu pružnosti konstrukční oceli se uvažuje ve výpočtech podle Eurokódu 3?",
+                "opts": ["21 GPa", "210 GPa", "2 100 GPa", "210 MPa"],
+                "ans": "210 GPa"
+            },
+            {
+                "okruh": 7,
+                "q": "Proč se pro beton ve výpočtech podle Eurokódu 2 zavádí sečnový modul pružnosti E_cm?",
+                "opts": ["Protože pracovní diagram betonu je výrazně nelineární.", "Protože beton je dokonale izotropní a lineárně pružný materiál.", "Protože beton nemá v tlaku žádnou pevnost.", "Protože modul pružnosti betonu je vyšší než u oceli."],
+                "ans": "Protože pracovní diagram betonu je výrazně nelineární."
+            },
+            {
+                "okruh": 7,
+                "q": "Co znamená, že dřevo je anizotropní materiál?",
+                "opts": ["Jeho modul pružnosti je ve všech směrech stejný.", "Jeho modul pružnosti je vyšší než u oceli.", "Při jakémkoli zatížení se deformuje pouze plasticky.", "Jeho tuhost závisí na směru zatížení vzhledem k vláknům – kolmo k vláknům je modul pružnosti mnohonásobně nižší."],
+                "ans": "Jeho tuhost závisí na směru zatížení vzhledem k vláknům – kolmo k vláknům je modul pružnosti mnohonásobně nižší."
+            }
+        ]
+        
+        vyber = []
+        okruhy = sorted({o["okruh"] for o in databaze_otazek})
+        for k in okruhy:
+            # Filtrace pro aktuální okruh
+            dostupne = [x for x in databaze_otazek if x["okruh"] == k]
+            vybrana = dict(random.choice(dostupne))
+            
+            # Zamíchání možností a, b, c, d
+            vybrana["opts"] = random.sample(vybrana["opts"], len(vybrana["opts"]))
+            vyber.append(vybrana)
+            
+        st.session_state.vybrane_otazky = vyber
+
+    # --- 2. VYKRESLENÍ VYLOSOVANÝCH OTÁZEK ---
     odpovedi_studenta = []
-    for i, otazka in enumerate(otazky):
+    for i, otazka in enumerate(st.session_state.vybrane_otazky):
         st.markdown(f"**{i+1}. {otazka['q']}**")
         vyber = st.radio(f"Otázka {i+1}", otazka['opts'], index=None, key=f"q_{i}", label_visibility="collapsed")
         odpovedi_studenta.append(vyber)
         st.write("---")
         
-    # Vyhodnocení
+   # --- 3. VYHODNOCENÍ S PAUZOU ---
     if st.button("Vyhodnotit kvíz a odemknout protokol"):
         if None in odpovedi_studenta:
             st.warning("⚠️ Před vyhodnocením musíte vybrat odpověď u všech 7 otázek!")
         else:
             skore = 0
             for i, odp in enumerate(odpovedi_studenta):
-                if odp == otazky[i]['ans']:
+                if odp == st.session_state.vybrane_otazky[i]['ans']:
                     skore += 1
                     
             if skore >= 6:
-                st.success(f"Výborně! Máte {skore} ze 7 správně. Vaše teoretická příprava je dostatečná.")
+                st.success(f"🎉 Výborně! Máte {skore} ze 7 správně. Vaše teoretická příprava je dostatečná. Protokol se odemyká...")
+                import time
+                time.sleep(3) # Aplikace počká 3 sekundy, aby si student stihl přečíst pochvalu
                 st.session_state.krok = 1
                 st.rerun()
             else:
-                st.error(f"❌ Zatím máte {skore} ze 7 správně. Pro odemčení protokolu potřebujete alespoň 6 bodů. Zamyslete se nad otázkami a zkuste to znovu.")
+                st.error(f"❌ Zatím máte {skore} ze 7 správně. Pro odemčení protokolu potřebujete alespoň 6 bodů. Zamyslete se nad svými chybami a zkuste to znovu.")
 
 # ==========================================
 # KROK 1: Identifikace a podmínky
