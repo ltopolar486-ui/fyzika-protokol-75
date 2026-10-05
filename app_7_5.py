@@ -317,7 +317,7 @@ if st.session_state.krok == 1:
     st.header("Laboratorní podmínky")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.session_state.tlak = st.text_input("Tlak (kPa)", value=st.session_state.tlak)
+        st.session_state.tlak = st.text_input("Tlak (hPa)", value=st.session_state.tlak)
     with col2:
         st.session_state.teplota = st.text_input("Teplota (°C)", value=st.session_state.teplota)
     with col3:
@@ -834,11 +834,11 @@ elif st.session_state.krok == 5:
         
         if delka_o1 >= limit_otazky and delka_o2 >= limit_otazky and delka_o3 >= limit_otazky and delka_z >= limit_zaver and vse_ok:
             st.success("Všechny odpovědi i matematické výpočty jsou v pořádku.")
-            if st.button("Ukončit a Odeslat protokol"):
+            if st.button("Ukončit vypracování protokolu"):
                 st.session_state.krok = 6
                 st.rerun()
         else:
-            st.warning("⚠️ Pro odeslání protokolu musíte bezchybně vypočítat modul E (včetně chyb), a odpovědět na všechny otázky v požadované délce.")
+            st.warning("⚠️ Pro ukončení protokolu musíte bezchybně vypočítat modul E (včetně chyby), a odpovědět na všechny otázky v požadované délce.")
             
             if delka_o1 < limit_otazky: 
                 st.write(f"- **Otázka 1:** {delka_o1}/{limit_otazky} znaků")
@@ -1075,7 +1075,7 @@ elif st.session_state.krok == 6:
     
     st.markdown("---")
     st.download_button(
-        label="📄 Stáhnout protokol v PDF (včetně grafu a české diakritiky)",
+        label="📄 Stáhnout protokol v PDF",
         data=pdf_bytes,
         file_name=nazev_souboru,
         mime="application/pdf"
